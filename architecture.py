@@ -2,6 +2,7 @@ import torch
 import math as mt
 import numpy as np
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 class RESAC_MERCATOR(torch.nn.Module):
     def __init__(self):
@@ -37,7 +38,7 @@ class RESAC_MERCATOR(torch.nn.Module):
         l_conv4.append(torch.nn.Conv2d(1,24,(5,5),padding='same'))
         l_conv4.append(torch.nn.Conv2d(24,24,(5,5),padding='same'))
         l_conv4.append(torch.nn.Conv2d(24,1,(1,1),padding='same'))
-        self.l_conv4 = torch.nn.MoannulerduleList(l_conv4)  
+        self.l_conv4 = torch.nn.ModuleList(l_conv4)  
 
         l_conv5 = []
         l_conv5.append(torch.nn.Conv2d(1,24,(5,5),padding='same'))
@@ -133,6 +134,7 @@ def train_resac(model, device, optimizer, scheduler, criterion, train_loader,val
 
     for epoch in range(num_epochs):
         print('epoch: {}'.format(epoch+1))
+        l_train = []
         for (ssh3,ssh6,ssh12,sst6,sst12,u12,v12) in tqdm(train_loader):
 
             X_batch = [ssh3.to(device),sst6.to(device),sst12.to(device)]
@@ -148,7 +150,7 @@ def train_resac(model, device, optimizer, scheduler, criterion, train_loader,val
             loss4 = criterion(y_pred[3], y_batch[3])  # v
             loss = loss1 + loss2 + loss3 + loss4
 
-            train_accuracy.append([loss1.item(),loss2.item(),loss3.item(),loss4.item()])
+            l_train.append([loss1.item(),loss2.item(),loss3.item(),loss4.item()])
 
             #clear out the gradients from the last step loss.backward()
             optimizer.zero_grad()
@@ -160,15 +162,17 @@ def train_resac(model, device, optimizer, scheduler, criterion, train_loader,val
             optimizer.step()
             
         scheduler.step()
-
+        l_train = np.array(l_train)
+        train_accuracy.append(np.mean(l_train,axis=0))
         with torch.no_grad():
-
+            l_valid = []
             for (ssh3,ssh6,ssh12,sst6,sst12,u12,v12) in valid_loader:
                 X_valid = [ssh3.to(device),sst6.to(device),sst12.to(device)]
                 y_valid = [ssh6.to(device),ssh12.to(device),u12.to(device),v12.to(device)]
                 output_valid = model(X_valid)
-                valid_accuracy.append(get_accuracy(output_valid, y_valid))
-
+                l_valid.append(get_accuracy(output_valid, y_valid))
+            l_valid = np.array(l_valid)
+            valid_accuracy.append(np.mean(l_valid,axis=0))
 
         print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {loss.item():.4f}, Train Accuracy: {train_accuracy[-1]}, valid Accuracy: {valid_accuracy[-1]}")
 

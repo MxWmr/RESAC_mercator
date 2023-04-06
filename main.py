@@ -4,13 +4,14 @@ import torch
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+plt.style.use('dark_background')
 from architecture import *
 
 
 
 # load data
 
-data_path = "/usr/home/mwemaere/neuro/Data_resac_mercator/"
+data_path = "/usr/home/mwemaere/neuro/Data/"
 ssh3 = torch.load(data_path + "SSH_MERCATOR_1%3.pt")
 ssh6 = torch.load(data_path + "SSH_MERCATOR_1%6.pt")[:,:,:134]
 ssh12 = torch.load(data_path + "SSH_MERCATOR_1%12.pt")[:,:,:268]
@@ -36,7 +37,7 @@ model = RESAC_MERCATOR()
 
 # training 
 
-optimizer = torch.optim.Adam(model.parameters(),lr=2e-3)
+optimizer = torch.optim.Adam(model.parameters(),lr=1.5e-3)
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, custom_scheduler)
 criterion = RMSELoss()
 num_epochs = 50
