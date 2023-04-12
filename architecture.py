@@ -2,6 +2,7 @@ import torch
 import math as mt
 import numpy as np
 from tqdm import tqdm
+import optuna
 from torch.utils.tensorboard import SummaryWriter
 
 class RESAC_MERCATOR(torch.nn.Module):
@@ -126,14 +127,15 @@ def get_accuracy(x,y):
     return [acc_ssh6.item(),acc_ssh12.item(),acc_u.item(),acc_v.item()]
 
 
-def train_resac(model, device, optimizer, scheduler, criterion, train_loader,valid_loader, num_epochs):
+def train_resac(model, device, optimizer, criterion, train_loader,valid_loader, num_epochs, verbose=1, scheduler=False, trial=False):
     model = model.to(device)
     train_accuracy=[]
     valid_accuracy=[]
 
 
     for epoch in range(num_epochs):
-        print('epoch: {}'.format(epoch+1))
+        if verbose:
+            print('epoch: {}'.format(epoch+1))
         l_train = []
         for (ssh3,ssh6,ssh12,sst6,sst12,u12,v12) in tqdm(train_loader):
 
@@ -161,7 +163,8 @@ def train_resac(model, device, optimizer, scheduler, criterion, train_loader,val
             #update the weights
             optimizer.step()
             
-        scheduler.step()
+        if scheduler!=False:
+            scheduler.step()
         l_train = np.array(l_train)
         train_accuracy.append(np.mean(l_train,axis=0))
         with torch.no_grad():
@@ -174,24 +177,41 @@ def train_resac(model, device, optimizer, scheduler, criterion, train_loader,val
             l_valid = np.array(l_valid)
             valid_accuracy.append(np.mean(l_valid,axis=0))
 
-        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {loss.item():.4f}, Train Accuracy: {train_accuracy[-1]}, valid Accuracy: {valid_accuracy[-1]}")
+        if verbose:
+            print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {loss.item():.4f}, Train Accuracy: {train_accuracy[-1]}, valid Accuracy: {valid_accuracy[-1]}")
+
+        if trial != False:
+            trial.report(valid_accuracy[-1][1], epoch)
+
+
+            # Handle pruning based on the intermediate value.
+            if trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
+            
 
     return train_accuracy, valid_accuracy
 
-def test_resac(model,test_loader,device):
+def test_resac(model,test_loader,device,get_im=[]):
 
     test_accuracy = []    
+    l_im = []
     with torch.no_grad():
-        for (ssh3,ssh6,ssh12,sst6,sst12,u12,v12) in test_loader:
+        for i,(ssh3,ssh6,ssh12,sst6,sst12,u12,v12) in enumerate(test_loader):
             X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
             y = [ssh6.to(device),ssh12.to(device),u12.to(device),v12.to(device)]
             y_pred= model(X)
             test_accuracy.append(get_accuracy(y_pred,y))
 
+            if i in get_im:
+                l_im.append([X,y,y_pred])
+
     test_accuracy = np.array(test_accuracy)
     mean = np.mean(test_accuracy, axis=0)
     std = np.std(test_accuracy, axis=0)
-    return mean,std
+    if len(get_im)!=0:
+        return mean,std,l_im
+    else:
+        return mean,std
 
 
 class ConcatDataset(torch.utils.data.Dataset):
@@ -217,35 +237,30 @@ class ConcatDataset(torch.utils.data.Dataset):
 def prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,u12,v12,batch_size=32):
 
 
-    X = [ssh3,sst6,sst12]
-    y = [ssh6,ssh12,u12,v12]
-    X_test = []
-    y_test = []
+    l = [ssh3,ssh6,ssh12,sst6,sst12,u12,v12]
+    l_test = []
+
 
     # year 2005 for testing
-    for i in range(len(X)):
-        X_test.append(X[i][365*12+3:365*13+3,:,:,:])
-        X[i] = torch.concat((X[i][:365*12+3,:,:,:],X[i][365*13+3:,:,:,:]),axis=0)
+    for i in range(len(l)):
+        l_test.append(l[i][365*12+3:365*13+3,:,:,:])
+        l[i] = torch.concat((l[i][:365*12+3,:,:,:],l[i][365*13+3:,:,:,:]),axis=0)
 
-    for i in range(len(y)):
-        y_test.append(y[i][365*12+3:365*13+3,:,:,:])
-        y[i] = torch.concat((y[i][:365*12+3,:,:,:],y[i][365*13+3:,:,:,:]),axis=0)
-
-    X_test.extend(y_test)
-    test_loader = ConcatDataset(X_test,shuffle=True)
+ 
+    test_loader = ConcatDataset(l_test,shuffle=True)
 
 
     partition = [9000,496]
     
     # random validation and test split
     generator2 = torch.Generator().manual_seed(42)
-    train_ssh3,valid_ssh3, = torch.utils.data.random_split(X[0],partition,generator=generator2)
-    train_ssh6,valid_ssh6 = torch.utils.data.random_split(y[0],partition,generator=generator2)
-    train_ssh12,valid_ssh12 = torch.utils.data.random_split(y[1],partition,generator=generator2)
-    train_sst6,valid_sst6 = torch.utils.data.random_split(X[1],partition,generator=generator2)
-    train_sst12,valid_sst12 = torch.utils.data.random_split(X[2],partition,generator=generator2)
-    train_u12,valid_u12 = torch.utils.data.random_split(y[2],partition,generator=generator2)
-    train_v12,valid_v12 = torch.utils.data.random_split(y[3],partition,generator=generator2)
+    train_ssh3,valid_ssh3, = torch.utils.data.random_split(l[0],partition,generator=generator2)
+    train_ssh6,valid_ssh6 = torch.utils.data.random_split(l[1],partition,generator=generator2)
+    train_ssh12,valid_ssh12 = torch.utils.data.random_split(l[2],partition,generator=generator2)
+    train_sst6,valid_sst6 = torch.utils.data.random_split(l[3],partition,generator=generator2)
+    train_sst12,valid_sst12 = torch.utils.data.random_split(l[4],partition,generator=generator2)
+    train_u12,valid_u12 = torch.utils.data.random_split(l[5],partition,generator=generator2)
+    train_v12,valid_v12 = torch.utils.data.random_split(l[6],partition,generator=generator2)
 
 
     # prepare loaders  

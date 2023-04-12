@@ -44,9 +44,35 @@ train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,ssh12,sst6,sst
 model = RESAC_MERCATOR()
 
 
-saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_11_18:16_model.pth'
-model.load_state_dict(torch.load(saved_path))
-model = model.to(device)
+if False:
+    saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_11_18:16_model.pth'
+    model.load_state_dict(torch.load(saved_path))
+    model = model.to(device)
+
+
+if True:
+
+
+    # training 
+    lr = 5e-5
+    optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+    #scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, custom_scheduler)
+    criterion = RMSELoss()
+    num_epochs = 30
+
+    train_accuracy, valid_accuracy = train_resac(model, device, optimizer, criterion, train_loader,valid_loader, num_epochs, scheduler=False)
+
+
+    #save model weights
+    save_path = "/usr/home/mwemaere/neuro/resac_mercator/Save/"
+   
+    torch.save(model.state_dict(), save_path+date+'model.pth')
+
+    #display loss
+    plot_train_loss(train_accuracy,save_path,date)
+    plot_valid_loss(valid_accuracy,save_path,date)
+
+
 
 
 
@@ -64,3 +90,4 @@ with open('test_result.txt', 'a') as f:
     f.close()
 plot_test_uv(l_im)
 plot_test_ssh(l_im)
+
