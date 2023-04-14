@@ -6,8 +6,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.style.use('dark_background')
 from architecture import *
+from plot_fct import *
 
 
+
+if torch.cuda.is_available():
+    device = "cuda" 
+else:
+    raise('No GPU !')
+
+date = datetime.now().strftime("%m_%d_%H:%M_")
 
 # load data
 
@@ -19,6 +27,7 @@ sst6 = torch.load(data_path + "SST_MERCATOR_1%6.pt")[:,:,:134]
 sst12 = torch.load(data_path + "SST_MERCATOR_1%12.pt")[:,:,:268]
 u12 = torch.load(data_path + "U_MERCATOR_1%12.pt")[:,:,:268]
 v12 = torch.load(data_path + "V_MERCATOR_1%12.pt")[:,:,:268]
+
 
 ssh3 = torch.unsqueeze(ssh3,1)
 ssh6 = torch.unsqueeze(ssh6,1)
@@ -32,49 +41,34 @@ v12 = torch.unsqueeze(v12,1)
 train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,u12,v12)
 
 # create model
-
 model = RESAC_MERCATOR()
 
-# training 
 
-optimizer = torch.optim.Adam(model.parameters(),lr=1.5e-3)
-scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, custom_scheduler)
-criterion = RMSELoss()
-num_epochs = 50
-if torch.cuda.is_available():
-    device = "cuda" 
-else:
-    raise('No GPU !')
-
-train_accuracy, valid_accuracy = train_resac(model, device, optimizer, scheduler, criterion, train_loader,valid_loader, num_epochs)
+saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_11_18:16_model.pth'
+model.load_state_dict(torch.load(saved_path))
+model = model.to(device)
 
 
-# save model weights
-save_path = "/usr/home/mwemaere/neuro/resac_mercator/Save/"
-date = datetime.now().strftime("%m_%d_%H:%M_")
-torch.save(model.state_dict(), save_path+date+'model.pth')
 
-# display loss
-plt.figure(1)
-plt.plot(train_accuracy,label=['ssh6','ssh12','u','v'])
-plt.xlabel('epoch')
-plt.ylabel('loss')
-plt.legend()
-plt.grid()
-plt.savefig(save_path+date+'train_loss.png')
-plt.show()
+# Test
+mean,std, l_im = test_resac(model,test_loader,device, get_im=[15,58,245])
 
-plt.figure(1)
-plt.plot(valid_accuracy,label=['ssh6','ssh12','u','v'])
-plt.xlabel('epoch')
-plt.ylabel('loss')
-plt.legend()
-plt.grid()
-plt.savefig(save_path+date+'valid_loss.png')
-plt.show()
 
-# test 
-
-mean,std = test_resac(model,test_loader,device)
 print(mean)
 print(std)
+
+im1 = torch.squeeze(l_im[0][1][1]).cpu().numpy()    # true
+im2 = torch.squeeze(l_im[0][2][1]).cpu().numpy()    # pred
+
+
+print("mean true im :{}  mean pred: {}".format(np.mean(im1),np.mean(im2)))
+
+print("std true im :{}  std pred: {}".format(np.std(im1),np.std(im2)))
+
+print("min val true im :{}  min val pred: {}".format(np.amin(im1),np.amin(im2)))
+
+print("max val true im :{}  max val pred: {}".format(np.amax(im1),np.amax(im2)))
+
+
+# plot_test_uv(l_im)
+# plot_test_ssh(l_im)

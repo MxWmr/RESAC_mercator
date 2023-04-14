@@ -11,9 +11,9 @@ class RESAC_MERCATOR(torch.nn.Module):
         self.upsamp = torch.nn.Upsample(scale_factor=2,mode='nearest')
 
         l_conv = []
-        l_conv.append(torch.nn.Conv2d(2,36,(6,6),padding='same'))
+        l_conv.append(torch.nn.Conv2d(2,36,(4,4),padding='same'))
         for i in range(4):
-            l_conv.append(torch.nn.Conv2d(36,36,(6,6),padding='same'))
+            l_conv.append(torch.nn.Conv2d(36,36,(4,4),padding='same'))
         l_conv.append(torch.nn.Conv2d(36,1,(1,1)))
         self.l_conv = torch.nn.ModuleList(l_conv)
 
@@ -228,6 +228,7 @@ class ConcatDataset(torch.utils.data.Dataset):
 
     def __getitem__(self,i):
         self.datasets[0][(i+1)*self.batch_size]
+
         return tuple(d[i*self.batch_size:(i+1)*self.batch_size] for d in self.datasets)
 
     def __len__(self):
@@ -271,12 +272,14 @@ def prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,u12,v12,batch_size=32):
     return train_loader,valid_loader,test_loader
 
 class RMSELoss(torch.nn.Module):
-    def __init__(self):
+    def __init__(self,coeff=1):
         super().__init__()
         self.mse = torch.nn.MSELoss()
+        self.coeff = coeff
         
     def forward(self,yhat,y):
-        return torch.sqrt(self.mse(yhat,y))
+        return self.coeff*torch.sqrt(self.mse(yhat,y))
+        #return self.mse(yhat,y)
 
 
 def custom_scheduler(epoch):
@@ -289,4 +292,16 @@ def custom_scheduler(epoch):
     else:
         return 2e-3*mt.exp(-0.02*40)*mt.exp(-0.05*40)
 
-
+def custom_scheduler2(epoch):
+    if epoch==5:
+        return 1e-3
+    elif epoch==15:
+        return 5e-4
+    elif epoch==25:
+        return 1e-4
+    elif epoch==35:
+        return 5e-5
+    elif epoch==45:
+        return 1e-5
+    else:
+        return 1

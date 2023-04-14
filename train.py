@@ -28,6 +28,10 @@ sst12 = torch.load(data_path + "SST_MERCATOR_1%12.pt")[:,:,:268]
 u12 = torch.load(data_path + "U_MERCATOR_1%12.pt")[:,:,:268]
 v12 = torch.load(data_path + "V_MERCATOR_1%12.pt")[:,:,:268]
 
+# for A in (ssh3,ssh6,ssh12,sst6,sst12,u12,v12):
+#     A -= A.min(1, keepdim=True)[0]
+#     A /= A.max(1, keepdim=True)[0]
+
 
 ssh3 = torch.unsqueeze(ssh3,1)
 ssh6 = torch.unsqueeze(ssh6,1)
@@ -44,50 +48,29 @@ train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,ssh12,sst6,sst
 model = RESAC_MERCATOR()
 
 
-if False:
-    saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_11_18:16_model.pth'
-    model.load_state_dict(torch.load(saved_path))
-    model = model.to(device)
 
 
-if True:
+
+# training 
+lr = 5e-4
+optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+#scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, custom_scheduler2)
+criterion = RMSELoss()
+num_epochs = 30
+
+train_accuracy, valid_accuracy = train_resac(model, device, optimizer, criterion, train_loader,valid_loader, num_epochs, scheduler=False)
 
 
-    # training 
-    lr = 5e-5
-    optimizer = torch.optim.Adam(model.parameters(),lr=lr)
-    #scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, custom_scheduler)
-    criterion = RMSELoss()
-    num_epochs = 30
+#save model weights
+save_path = "/usr/home/mwemaere/neuro/resac_mercator/Save/"
 
-    train_accuracy, valid_accuracy = train_resac(model, device, optimizer, criterion, train_loader,valid_loader, num_epochs, scheduler=False)
+torch.save(model.state_dict(), save_path+date+'model.pth')
 
-
-    #save model weights
-    save_path = "/usr/home/mwemaere/neuro/resac_mercator/Save/"
-   
-    torch.save(model.state_dict(), save_path+date+'model.pth')
-
-    #display loss
-    plot_train_loss(train_accuracy,save_path,date)
-    plot_valid_loss(valid_accuracy,save_path,date)
+#display loss
+plot_train_loss(train_accuracy,save_path,date)
+plot_valid_loss(valid_accuracy,save_path,date)
 
 
 
 
-
-# Test
-mean,std, l_im = test_resac(model,test_loader,device, get_im=[15,58,245])
-
-
-print(mean)
-print(std)
-with open('test_result.txt', 'a') as f:
-    f.write('\n'+date+'\n')
-    f.write(str(mean)+'\n')
-    f.write(str(std)+'\n')
-
-    f.close()
-plot_test_uv(l_im)
-plot_test_ssh(l_im)
 

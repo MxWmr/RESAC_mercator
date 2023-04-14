@@ -37,10 +37,7 @@ sst12 = torch.unsqueeze(sst12,1)
 u12 = torch.unsqueeze(u12,1)
 v12 = torch.unsqueeze(v12,1)
 
-if False:
-    saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_11_15:56_model.pth'
-    model.load_state_dict(torch.load(saved_path))
-    model = model.to(device)
+
 
 
 def objective(trial):
