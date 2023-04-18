@@ -11,7 +11,7 @@ from plot_fct_conv1 import *
 
 
 if torch.cuda.is_available():
-    device = "cuda" 
+    device = "cuda:1" 
 else:
     raise('No GPU !')
 
@@ -42,7 +42,8 @@ train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,sst6,batch_siz
 
 # create model
 model = RESAC_MERCATOR()
-
+saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_18_11:30_model_conv1.pth'
+model.load_state_dict(torch.load(saved_path))
 
 
 
@@ -52,17 +53,30 @@ lr = 1e-3
 #lambda1 = lambda epoch: 0.65 ** epoch
 def lambda1(epoch):
     if epoch<20:
-        return 0.99**epoch
+        return 0.995**epoch
     elif epoch<70:
-        return 0.96**epoch
+        return 0.99**epoch
+    elif epoch<90:
+        return 0.985**epoch
     else:
-        return 0.94**epoch
+        return 0.98**epoch
 
-optimizer = torch.optim.Adam(model.parameters(),lr=lr)
-scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda1)
+lr2 = 8.8e-5
+def lambda2(epoch):
+    if epoch<20:
+        return 0.985**epoch
+    elif epoch<70:
+        return 0.98**epoch
+    elif epoch<90:
+        return 0.975**epoch
+    else:
+        return 0.97**epoch
+
+optimizer = torch.optim.Adam(model.parameters(),lr=lr2)
+scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda2)
 criterion = RMSELoss()
 #criterion = torch.nn.MSELoss()
-num_epochs = 100
+num_epochs = 80
 
 valid_accuracy = train_resac(model, device, optimizer, criterion, train_loader,valid_loader, num_epochs, scheduler=scheduler,tb=True)
 
@@ -70,12 +84,11 @@ valid_accuracy = train_resac(model, device, optimizer, criterion, train_loader,v
 #save model weights
 save_path = "/usr/home/mwemaere/neuro/resac_mercator/Save/"
 
-#torch.save(model.state_dict(), save_path+date+'model_conv1.pth')
+torch.save(model.state_dict(), save_path+date+'model_conv1.pth')
+
 
 #display loss
 plot_valid_loss(valid_accuracy,save_path,date)
-
-
 
 
 

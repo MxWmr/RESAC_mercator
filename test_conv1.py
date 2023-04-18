@@ -1,7 +1,7 @@
 
 # import modules
 import torch
-from datetime import datetime
+
 import numpy as np
 import matplotlib.pyplot as plt
 plt.style.use('dark_background')
@@ -15,7 +15,7 @@ if torch.cuda.is_available():
 else:
     raise('No GPU !')
 
-date = datetime.now().strftime("%m_%d_%H:%M_")
+
 
 # load data
 
@@ -27,10 +27,9 @@ sst6 = torch.load(data_path + "SST_MERCATOR_1%6.pt")[:,:,:134]
 
 
 
-# for A in (ssh3,ssh6,ssh12,sst6,sst12,u12,v12):
-#     A -= A.min(1, keepdim=True)[0]
-#     A /= A.max(1, keepdim=True)[0]
-
+for A in (ssh3,ssh6,sst6):
+    A -= torch.min(A)
+    A /= torch.max(A)
 
 ssh3 = torch.unsqueeze(ssh3,1)
 ssh6 = torch.unsqueeze(ssh6,1)
@@ -42,8 +41,8 @@ train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,sst6)
 # create model
 model = RESAC_MERCATOR()
 
-
-saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_13_10:46_model_conv1.pth'
+date = '04_17_16:15_'
+saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/'+date+'model_conv1.pth'
 model.load_state_dict(torch.load(saved_path))
 model = model.to(device)
 
@@ -62,4 +61,4 @@ with open('test_result.txt', 'a') as f:
 
     f.close()
 
-plot_test_ssh(l_im)
+plot_test_ssh(l_im,saved_path,date)

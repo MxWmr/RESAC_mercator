@@ -16,54 +16,64 @@ class RESAC_MERCATOR(torch.nn.Module):
         super().__init__()
         self.upsamp = torch.nn.Upsample(scale_factor=2,mode='bicubic')
 
-        n_f  = 32
+        n_f  = 64
 
         l_conv,l2_conv = [],[]
 
         l_conv.append(torch.nn.Conv2d(2,n_f,3,padding='same'))
         l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
-        for i in range(3):  
+        for i in range(5):  
             l_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
             l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
-        l_conv.append(torch.nn.Conv2d(n_f,1,1))
+
+        l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
+        l_conv.append(torch.nn.Conv2d(n_f,1,3,padding='same'))
+
         self.l_conv = torch.nn.ModuleList(l_conv)
         self.l2_conv = torch.nn.ModuleList(l2_conv)
 
         self.bn = torch.nn.BatchNorm2d(n_f)
         self.relu = torch.nn.SiLU()
-        self.sig = torch.sigmoid
+        self.sig = torch.nn.Sigmoid()
 
 
 
-    def CNN1(self,im,res_input): 
+    def CNN1(self,im): 
         im = self.l_conv[0](im)
         im = self.relu(im)
         im = self.l2_conv[0](im)
         im = self.relu(im)
         im = self.bn(im)
         for i in range(1,len(self.l_conv)-1):
-            residual = im
             im = self.l_conv[i](im)
             im = self.relu(im)
             im = self.l2_conv[i](im)
             im = self.relu(im)
             im = self.bn(im)
-            im += residual
+
+        im = self.l2_conv[-1](im)
+        im = self.relu(im)
         im = self.l_conv[-1](im)
-        im += res_input
+        im =self.sig(im)
+
+
         return im
     
 
 
-    def forward(self,X):
+    def forward(self,X,up=False):
         ssh3,sst6 = X[0],X[1]
 
         ssh3_up = self.upsamp(ssh3)
 
         ssh_sst_6 = torch.concat((ssh3_up,sst6),axis=1)
 
-        ssh6 = self.CNN1(ssh_sst_6,ssh3_up)
-        return ssh6
+        ssh6 = self.CNN1(ssh_sst_6) 
+
+        if up:
+            return ssh6,ssh3_up
+        else:
+            return ssh6
 
 
 
@@ -122,12 +132,18 @@ def train_resac(model, device, optimizer, criterion, train_loader,valid_loader, 
             valid_accuracy.append(np.mean(l_valid,axis=0))
 
         if verbose:
-            print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {loss.item():.4f}, valid Accuracy: {valid_accuracy[-1]}")
+            print(f"Epoch {epoch+1}/{num_epochs}, Total Loss: {total_loss:.4f}, valid Accuracy: {valid_accuracy[-1]}")
 
         if tb:
 
             tbw.add_scalar("Validation loss",valid_accuracy[-1],epoch)
             tbw.add_scalar("Total loss",total_loss,epoch)
+
+            if epoch % 5 == 0 :
+                tbw.add_image("prediction",y_pred[0])
+                tbw.add_image("target",y_batch[0])
+
+
         if trial != False:
             trial.report(valid_accuracy[-1], epoch)
 
@@ -147,11 +163,11 @@ def test_resac(model,test_loader,device,get_im=[]):
         for i,(ssh3,ssh6,sst6) in enumerate(test_loader):
             X = [ssh3.to(device),sst6.to(device)]
             y = ssh6.to(device)
-            y_pred= model(X)
+            y_pred,up = model(X,up=True)
             test_accuracy.append(get_accuracy(y_pred,y))
 
             if i in get_im:
-                l_im.append([X,y,y_pred])
+                l_im.append([[up,sst6],y,y_pred])
 
     test_accuracy = np.array(test_accuracy)
     mean = np.mean(test_accuracy, axis=0)
@@ -199,10 +215,10 @@ def prepare_loaders(ssh3,ssh6,sst6,batch_size=32):
     test_loader = ConcatDataset(l_test,shuffle=True)
 
 
-    partition = [9000,496]
+    partition = [8000,1496]
     
     # random validation and test split
-    generator2 = torch.Generator().manual_seed(42)
+    generator2 = torch.Generator().manual_seed(36)
     train_ssh3,valid_ssh3, = torch.utils.data.random_split(l[0],partition,generator=generator2)
     train_ssh6,valid_ssh6 = torch.utils.data.random_split(l[1],partition,generator=generator2)
     train_sst6,valid_sst6 = torch.utils.data.random_split(l[2],partition,generator=generator2)
@@ -211,7 +227,7 @@ def prepare_loaders(ssh3,ssh6,sst6,batch_size=32):
     # prepare loaders  
     train_loader = ConcatDataset([train_ssh3,train_ssh6,train_sst6],shuffle=True,batch_size=batch_size)
 
-    valid_loader = ConcatDataset([valid_ssh3,valid_ssh6,valid_sst6],shuffle=False,batch_size=batch_size)
+    valid_loader = ConcatDataset([valid_ssh3,valid_ssh6,valid_sst6],shuffle=True,batch_size=batch_size)
 
     return train_loader,valid_loader,test_loader
 
