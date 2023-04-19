@@ -22,7 +22,7 @@ class RESAC_MERCATOR(torch.nn.Module):
 
         l_conv.append(torch.nn.Conv2d(2,n_f,3,padding='same'))
         l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
-        for i in range(2):  
+        for i in range(3):  
             l_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
             l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
 
@@ -205,7 +205,6 @@ class ConcatDataset(torch.utils.data.Dataset):
 
     def __getitem__(self,i):
         self.datasets[0][(i+1)*self.batch_size]
-
         return tuple(d[i*self.batch_size:(i+1)*self.batch_size] for d in self.datasets)
 
     def __len__(self):

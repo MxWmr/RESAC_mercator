@@ -27,8 +27,9 @@ sst6 = torch.load(data_path + "SST_MERCATOR_1%6.pt")[:,:,:134]
 
 
 for A in (ssh3,ssh6,sst6):
-    A -= torch.min(A)
-    A /= torch.max(A)
+    for im in A:
+        im -= torch.min(im)
+        im /= torch.max(im)
 
 
 
