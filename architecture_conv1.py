@@ -5,9 +5,9 @@ from tqdm import tqdm
 import optuna
 from torch.utils.tensorboard import SummaryWriter
 from plot_fct_conv1 import *
+import torchmetrics
 
-
-
+torch.autograd.set_detect_anomaly(True)
 
 
 
@@ -22,7 +22,7 @@ class RESAC_MERCATOR(torch.nn.Module):
 
         l_conv.append(torch.nn.Conv2d(2,n_f,3,padding='same'))
         l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
-        for i in range(5):  
+        for i in range(2):  
             l_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
             l2_conv.append(torch.nn.Conv2d(n_f,n_f,3,padding='same'))
 
@@ -50,12 +50,16 @@ class RESAC_MERCATOR(torch.nn.Module):
             im = self.l2_conv[i](im)
             im = self.relu(im)
             im = self.bn(im)
+            #if i%2==0:
+            #    im = self.bn(im)
+
+
 
         im = self.l2_conv[-1](im)
         im = self.relu(im)
         im = self.l_conv[-1](im)
         im =self.sig(im)
-
+        
 
         return im
     
@@ -63,8 +67,11 @@ class RESAC_MERCATOR(torch.nn.Module):
 
     def forward(self,X,up=False):
         ssh3,sst6 = X[0],X[1]
-
+        #n,c,a1,b1=ssh3.shape
+        #n,c,a2,b2=sst6.shape
         ssh3_up = self.upsamp(ssh3)
+        #ssh3_up = torch.zeros_like(sst6)
+        #ssh3_up[:,:,(a2-a1)//2:(a2-a1)//2+a1,(b2-b1)//2:(b2-b1)//2+b1] = ssh3
 
         ssh_sst_6 = torch.concat((ssh3_up,sst6),axis=1)
 
@@ -111,6 +118,12 @@ def train_resac(model, device, optimizer, criterion, train_loader,valid_loader, 
 
             #calculate the loss
             loss = criterion(y_pred, y_batch) 
+            # dpred_x,dpred_y = torchmetrics.functional.image_gradients(y_pred,inplace=False )
+            # dbatch_x,dbatch_y = torchmetrics.functional.image_gradients(y_batch,inplace=False )
+            # dpred_x,dpred_y = image_gradients(y_pred)
+            # dbatch_x,dbatch_y = image_gradients(y_batch)
+            # loss += criterion(dpred_x,dbatch_x)
+            # loss += criterion(dpred_y,dbatch_y)
             total_loss += loss.item()
             #backward propagation: calculate gradients
             loss.backward()
@@ -264,5 +277,31 @@ def custom_scheduler3(epoch):
         return 0.02
     else:
         return 0.01
+
+
+class RMSLELoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = torch.nn.MSELoss()
+        
+    def forward(self, pred, actual):
+        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
+
+
+
+# def image_gradients(img : 'BCHW'):
+
+#     flipped_sobel_x = torch.tensor([
+#         [-1, 0, 1],
+#         [-2, 0, 2],
+#         [-1, 0, 1]
+#     ])
+
+#     kernel = torch.stack([flipped_sobel_x, flipped_sobel_x.t()]).unsqueeze(1)
+#     components = torch.nn.functional.conv2d(img.flatten(end_dim = -3).unsqueeze(1), kernel.to(dtype = img.dtype, device = img.device), padding = 1).unflatten(0, img.shape[:-2])
+
+#     dx, dy = components.unbind(dim = -3)
+
+#     return dx,dy
 
 

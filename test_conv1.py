@@ -41,7 +41,7 @@ train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,sst6)
 # create model
 model = RESAC_MERCATOR()
 
-date = '04_17_16:15_'
+date = '04_18_16:28_'
 saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/'+date+'model_conv1.pth'
 model.load_state_dict(torch.load(saved_path))
 model = model.to(device)

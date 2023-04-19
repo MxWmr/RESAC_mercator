@@ -42,15 +42,15 @@ train_loader,valid_loader,test_loader = prepare_loaders(ssh3,ssh6,sst6,batch_siz
 
 # create model
 model = RESAC_MERCATOR()
-saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_18_11:30_model_conv1.pth'
-model.load_state_dict(torch.load(saved_path))
+# saved_path = '/usr/home/mwemaere/neuro/resac_mercator/Save/04_18_16:28_model_conv1.pth'
+# model.load_state_dict(torch.load(saved_path))
 
 
 
 
 # training 
-lr = 1e-3   
-#lambda1 = lambda epoch: 0.65 ** epoch
+lr = 1e-3  
+
 def lambda1(epoch):
     if epoch<20:
         return 0.995**epoch
@@ -61,22 +61,26 @@ def lambda1(epoch):
     else:
         return 0.98**epoch
 
-lr2 = 8.8e-5
-def lambda2(epoch):
-    if epoch<20:
-        return 0.985**epoch
-    elif epoch<70:
-        return 0.98**epoch
-    elif epoch<90:
-        return 0.975**epoch
-    else:
-        return 0.97**epoch
+# lr2 = 8.8e-5
+# def lambda2(epoch):
+#     if epoch<20:
+#         return 0.985**epoch
+#     elif epoch<70:
+#         return 0.98**epoch
+#     elif epoch<90:
+#         return 0.975**epoch
+#     else:
+#         return 0.97**epoch
 
-optimizer = torch.optim.Adam(model.parameters(),lr=lr2)
-scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda2)
-criterion = RMSELoss()
+
+## tester lr enorme no batchnorm puis RMSLE puis gradient puis pas de upsample et pad  
+
+optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda1)
+#criterion = RMSELoss()
 #criterion = torch.nn.MSELoss()
-num_epochs = 80
+criterion = RMSLELoss()
+num_epochs = 70
 
 valid_accuracy = train_resac(model, device, optimizer, criterion, train_loader,valid_loader, num_epochs, scheduler=scheduler,tb=True)
 
