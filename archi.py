@@ -10,80 +10,155 @@ class resac(nn.Module):
         
         nf = 36
 
-        self.conv1 = nn.Conv2d(2,nf,3,padding='same')
-        self.conv2 = nn.Conv2d(nf,nf,3,padding='same')
+        l_conv1 = []
+        l_conv1.append(nn.Conv2d(2,nf,3,padding='same'))
 
-        self.conv3 = nn.Conv2d(nf,nf,3,padding='same')
-        self.conv4 = nn.Conv2d(nf,nf,3,padding='same')
+        for i in range(8):
+            l_conv1.append(nn.Conv2d(nf,nf,3,padding='same'))
 
-        self.conv5 = nn.Conv2d(nf,nf,3,padding='same')
-        self.conv6 = nn.Conv2d(nf,nf,3,padding='same')
+        l_conv1.append(nn.Conv2d(nf,1,1,padding='same'))
+        self.l_conv1 = nn.ModuleList(l_conv1)
 
-        self.conv7 = nn.Conv2d(nf,nf,3,padding='same')
-        self.conv8 = nn.Conv2d(nf,nf,3,padding='same')
 
-        self.conv9 = nn.Conv2d(nf,nf,3,padding='same')
-        self.conv10 = nn.Conv2d(nf,1,1,padding='same')
 
         nf = 24
 
-        self.conv11 = nn.Conv2d(2,nf,5,padding='same')
-        self.conv12 = nn.Conv2d(nf,nf,5,padding='same')
+        l_conv2 = []
+        l_conv2.append(nn.Conv2d(2,nf,5,padding='same'))
 
-        self.conv13 = nn.Conv2d(nf,nf,5,padding='same')
-        self.conv14 = nn.Conv2d(nf,nf,5,padding='same')
+        for i in range(6):
+            l_conv2.append(nn.Conv2d(nf,nf,3,padding='same'))
 
-        self.conv15 = nn.Conv2d(nf,nf,5,padding='same')
-        self.conv16 = nn.Conv2d(nf,nf,5,padding='same')
+        l_conv2.append(nn.Conv2d(nf,1,1,padding='same'))
+        self.l_conv2 = nn.ModuleList(l_conv2)
 
-        self.conv17 = nn.Conv2d(nf,nf,5,padding='same')
-        self.conv18 = nn.Conv2d(nf,1,1,padding='same')
+
+
+
+        l_conv3 = []
+        l_conv3.append(nn.Conv2d(2,nf,3,padding='same'))
+
+        for i in range(6):
+            l_conv3.append(nn.Conv2d(nf,nf,3,padding='same'))
+
+        l_conv3.append(nn.Conv2d(nf,1,1,padding='same'))
+        self.l_conv3 = nn.ModuleList(l_conv3)
+
+
+
+
+        l_conv4 = []
+        l_conv4.append(nn.Conv2d(1,nf,3,padding='same'))
+
+        for i in range(6):
+            l_conv4.append(nn.Conv2d(nf,nf,3,padding='same'))
+
+        l_conv4.append(nn.Conv2d(nf,1,1,padding='same'))
+        self.l_conv4 = nn.ModuleList(l_conv4)
+
+
+
+        l_conv5 = []
+        l_conv5.append(nn.Conv2d(1,nf,3,padding='same'))
+
+        for i in range(6):
+            l_conv5.append(nn.Conv2d(nf,nf,3,padding='same'))
+
+        l_conv5.append(nn.Conv2d(nf,1,1,padding='same'))
+        self.l_conv5 = nn.ModuleList(l_conv5)
+
+
+
+
+
 
 
         self.upsamp = nn.Upsample(scale_factor=2,mode='bicubic')
         self.bn1 = nn.BatchNorm2d(36)
-        self.bn2 =  nn.BatchNorm2d(nf) 
-        self.factiv = nn.ReLU()
+        self.bn =  nn.BatchNorm2d(nf) 
+        self.relu = nn.ReLU()
         self.sig = nn.Sigmoid()
 
     def CNN1(self,im):
-        im = self.factiv(self.conv1(im))
-        im = self.factiv(self.conv2(im))
-        im = self.bn1(im)
+        for i in range(0,len(self.l_conv1)-2,2):
+            im = self.l_conv1[i](im)
+            im = self.relu(im)
+            im = self.l_conv1[i+1](im)
+            im = self.relu(im)
+            im = self.bn1(im)
 
-        im = self.factiv(self.conv3(im))
-        im = self.factiv(self.conv4(im))
-        im = self.bn1(im)
+        im = self.l_conv1[-2](im)
+        im = self.relu(im)
+        im = self.l_conv1[-1](im)
+        ssh6 =self.sig(im)
 
-        im = self.factiv(self.conv5(im))
-        im = self.factiv(self.conv6(im))
-        im = self.bn1(im)
-
-        im = self.factiv(self.conv7(im))
-        im = self.factiv(self.conv8(im))
-        im = self.bn1(im)
-
-        im = self.factiv(self.conv9(im))
-        ssh6 = self.sig(self.conv10(im))
         return ssh6
 
     def CNN2(self,im):
-        im = self.factiv(self.conv11(im))
-        im = self.factiv(self.conv12(im))
-        im = self.bn2(im)
 
-        im = self.factiv(self.conv13(im))
-        im = self.factiv(self.conv14(im))
-        im = self.bn2(im)
+        for i in range(0,len(self.l_conv2)-2,2):
+            im = self.l_conv2[i](im)
+            im = self.relu(im)
+            im = self.l_conv2[i+1](im)
+            im = self.relu(im)
+            im = self.bn(im)
 
-        im = self.factiv(self.conv15(im))
-        im = self.factiv(self.conv16(im))
-        im = self.bn2(im)
-
-        im = self.factiv(self.conv17(im))
-        ssh12 = self.sig(self.conv18(im))
-
+        im = self.l_conv2[-2](im)
+        im = self.relu(im)
+        im = self.l_conv2[-1](im)
+        ssh12 =self.sig(im)
+        
         return ssh12
+
+    def CNN3(self,im):
+
+        for i in range(0,len(self.l_conv3)-2,2):
+            im = self.l_conv3[i](im)
+            im = self.relu(im)
+            im = self.l_conv3[i+1](im)
+            im = self.relu(im)
+            im = self.bn(im)
+
+        im = self.l_conv3[-2](im)
+        im = self.relu(im)
+        im = self.l_conv3[-1](im)
+        uv =self.sig(im)
+
+        return uv
+
+    def CNN4(self,im):
+
+        for i in range(0,len(self.l_conv4)-2,2):
+            im = self.l_conv4[i](im)
+            im = self.relu(im)
+            im = self.l_conv4[i+1](im)
+            im = self.relu(im)
+            im = self.bn(im)
+
+        im = self.l_conv4[-2](im)
+        im = self.relu(im)
+        im = self.l_conv4[-1](im)
+        u =self.sig(im)
+        
+        return u
+
+
+    def CNN5(self,im):
+
+        for i in range(0,len(self.l_conv3)-2,2):
+            im = self.l_conv5[i](im)
+            im = self.relu(im)
+            im = self.l_conv5[i+1](im)
+            im = self.relu(im)
+            im = self.bn(im)
+
+        im = self.l_conv5[-2](im)
+        im = self.relu(im)
+        im = self.l_conv5[-1](im)
+        v =self.sig(im)
+
+        return v  
+
 
     def forward(self,X):
         ssh3,sst6,sst12 = X[0],X[1],X[2]
@@ -95,7 +170,14 @@ class resac(nn.Module):
         ssh_sst12 = torch.concat((ssh6_up,sst12),axis=1)
         ssh12 = self.CNN2(ssh_sst12)
 
-        return [ssh6,ssh12]
+
+        ssh_sst_12_bis = torch.concat((ssh12,sst12),axis=1)
+        uv_12 = self.CNN3(ssh_sst_12_bis)
+
+        u = self.CNN4(uv_12)
+        v = self.CNN5(uv_12)
+
+        return [ssh6,ssh12,u,v]
 
     def fit(self,device,optimizer,criterion,train_loader,num_epochs):
 
@@ -107,21 +189,27 @@ class resac(nn.Module):
 
             l_loss1 = []
             l_loss2 = []
+            l_loss3 = []
+            l_loss4 = []
             
-            for (ssh3,ssh6,ssh12,sst6,sst12) in tqdm(train_loader):
+            for (ssh3,ssh6,ssh12,sst6,sst12,u,v) in tqdm(train_loader):
 
                 optimizer.zero_grad()
 
                 X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
-                y = [ssh6.to(device),ssh12.to(device)]
+                y = [ssh6.to(device),ssh12.to(device),u.to(device),v.to(device)]
 
                 y_pred = model(X)
 
                 loss1 = criterion(y_pred[0],y[0])
                 loss2 = criterion(y_pred[1],y[1])
-                loss = loss1 + loss2
+                loss3 = criterion(y_pred[2],y[3])
+                loss4 = criterion(y_pred[3],y[3])
+                loss = loss1 + loss2 + loss3 + loss4
                 l_loss1.append(loss1.item())
                 l_loss2.append(loss2.item())
+                l_loss3.append(loss3.item())
+                l_loss4.append(loss4.item())
 
                 loss.backward()
 
@@ -129,6 +217,14 @@ class resac(nn.Module):
 
             tbw.add_scalar("loss 1",np.array(l_loss1).mean(),epoch)
             tbw.add_scalar("loss 2",np.array(l_loss2).mean(),epoch)
+            tbw.add_scalar("loss 3",np.array(l_loss3).mean(),epoch)
+            tbw.add_scalar("loss 4",np.array(l_loss4).mean(),epoch)
+
+            if epoch%4 == 0:
+                tbw.add_image("prediction ssh12",y_pred[1][0])
+                tbw.add_image("target ssh",y[1][0])
+                tbw.add_image("prediction u",y_pred[2][0])
+                tbw.add_image("target u",y[2][0])
 
         tbw.close()
             
@@ -138,14 +234,14 @@ class resac(nn.Module):
         test_accuracy = []    
         l_im = []
         with torch.no_grad():
-            for i,(ssh3,ssh6,ssh12,sst6,sst12) in enumerate(test_loader):
+            for i,(ssh3,ssh6,ssh12,sst6,sst12,u,v) in enumerate(test_loader):
                 X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
-                y = [ssh6.to(device),ssh12.to(device)]
+                y = [ssh6.to(device),ssh12.to(device),u.to(device),v.to(device)]
                 y_pred = model(X)
-                test_accuracy.append(criterion(y[0],y_pred[0]).item()+criterion(y[1],y_pred[1]).item())
+                test_accuracy.append(criterion(y[0],y_pred[0]).item()+criterion(y[1],y_pred[1]).item()+criterion(y[2],y_pred[2]).item()+criterion(y[3],y_pred[3]).item())
 
                 if i in get_im:
-                    l_im.append([ssh3,y_pred[0],y_pred[1],y[1]])
+                    l_im.append([ssh3,y_pred[0],y_pred[1],y_pred[2],y_pred[3],y[1],y[2],y[3]])
 
 
         test_accuracy = np.array(test_accuracy)
@@ -176,9 +272,9 @@ class ConcatData(torch.utils.data.Dataset):
     def __len__(self):
         return min(int(len(d)/self.batch_size) for d in self.datasets)
 
-def prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,batch_size=32):
+def prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,u,v,batch_size=32):
 
-    l = [ssh3,ssh6,ssh12,sst6,sst12]
+    l = [ssh3,ssh6,ssh12,sst6,sst12,u,v]
     l_test = []
 
     for i in range(len(l)):
