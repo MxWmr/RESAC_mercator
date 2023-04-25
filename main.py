@@ -31,6 +31,7 @@ for A in (ssh3,ssh6,ssh12,sst6,sst12,u12,v12):
     A /= torch.max(A)
 
 
+
 ssh3 = torch.unsqueeze(ssh3,1)
 ssh6 = torch.unsqueeze(ssh6,1)
 ssh12 = torch.unsqueeze(ssh12,1)
@@ -45,21 +46,20 @@ criterion = RMSELoss()
 
 model = resac()
 
-if True:
+if False:    #train
     lr = 1e-3  
     optimizer = torch.optim.Adam(model.parameters(),lr=lr)
 
-    
-    num_epochs = 70
+    num_epochs =40
 
     model.fit(device,optimizer,criterion,train_loader,num_epochs)
 
-    torch.save(model.state_dict(), save_path+date+'model_conv1.pth')
+    torch.save(model.state_dict(), save_path+date+'model.pth')
 
-if False:
+if True:   #test
     device= 'cpu'
-    date = '04_20_15:21_'
-    model.load_state_dict(torch.load(save_path+date+'model_conv1.pth'))
+    date = '04_25_16:08_'
+    model.load_state_dict(torch.load(save_path+date+'model.pth'))
     model = model.to(device)
 
     mean,std, l_im = model.test(criterion,test_loader,device, get_im=[15,58,245])
@@ -67,7 +67,13 @@ if False:
 
     print(mean)
     print(std)
+    with open('test_result.txt', 'a') as f:
+        f.write('\n'+date+'\n')
+        f.write(str(mean)+'\n')
+        f.write(str(std)+'\n')
 
+        f.close()
 
     plot_test_ssh(l_im,save_path,date)
     plot_test_uv(l_im,save_path,date)
+    plot_test_uv2(l_im,save_path,date)

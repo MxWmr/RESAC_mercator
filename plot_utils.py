@@ -32,17 +32,40 @@ def plot_test_ssh(l_im,save_path,date,cmap="coolwarm",save=True):
     plt.show()
 
 
+def plot_test_uv(l_im,save_path,date,cmap="inferno",save=True):
+
+    fig,axes=plt.subplots(nrows=len(l_im),ncols=4,figsize=(35,15)) 
+    
+    for n,line in enumerate(l_im):
+        [s1,s2,s3,u_pred,v_pred,s4,u,v] = line
+        min_val = min(torch.min(u),torch.min(v),torch.min(u_pred),torch.min(v_pred))
+        max_val = max(torch.max(u),torch.max(v),torch.max(u_pred),torch.max(v_pred))
+        im1 = axes[n,0].imshow(torch.squeeze(u_pred).cpu().numpy(),cmap=cmap)
+        im2 = axes[n,1].imshow(torch.squeeze(v_pred).cpu().numpy(),cmap=cmap)
+        im3 = axes[n,2].imshow(torch.squeeze(u).cpu().numpy(),cmap=cmap,  vmin=min_val, vmax=max_val)
+        im4 = axes[n,3].imshow(torch.squeeze(v).cpu().numpy(),cmap=cmap,  vmin=min_val, vmax=max_val)
 
 
-def plot_test_uv(l_im,save_path,date,save=True):
+    cols=['u_pred','v_pred','u_pred','v_pred']
+    for ax, col in zip(axes[0], cols):
+        ax.set_title(col)
+
+    fig.tight_layout()
+    
+    if save:
+        plt.savefig(save_path+date+'uv.png')
+    plt.show()
+
+
+def plot_test_uv2(l_im,save_path,date,save=True):
 
 
     fig,axes=plt.subplots(nrows=len(l_im),ncols=2,figsize=(35,15)) 
 
     clim=(100,-100)
 
-    l_x = l_im[0][1][2].shape[2]
-    l_y = l_im[0][1][2].shape[3]
+    l_x = l_im[0][3].shape[2]
+    l_y = l_im[0][3].shape[3]
     for n,line in enumerate(l_im):
         [_,_,_,u_pred,v_pred,_,u,v] = line
         long,lat = np.meshgrid(np.linspace(-100,100,l_x),np.linspace(-100,100,l_y))
@@ -55,5 +78,5 @@ def plot_test_uv(l_im,save_path,date,save=True):
 
     fig.tight_layout()
     if save:
-        plt.savefig(save_path+date+'images.png')
+        plt.savefig(save_path+date+'uv2.png')
     plt.show()

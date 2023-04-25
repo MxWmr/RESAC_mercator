@@ -203,7 +203,7 @@ class resac(nn.Module):
 
                 loss1 = criterion(y_pred[0],y[0])
                 loss2 = criterion(y_pred[1],y[1])
-                loss3 = criterion(y_pred[2],y[3])
+                loss3 = criterion(y_pred[2],y[2])
                 loss4 = criterion(y_pred[3],y[3])
                 loss = loss1 + loss2 + loss3 + loss4
                 l_loss1.append(loss1.item())
@@ -238,7 +238,7 @@ class resac(nn.Module):
                 X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
                 y = [ssh6.to(device),ssh12.to(device),u.to(device),v.to(device)]
                 y_pred = model(X)
-                test_accuracy.append(criterion(y[0],y_pred[0]).item()+criterion(y[1],y_pred[1]).item()+criterion(y[2],y_pred[2]).item()+criterion(y[3],y_pred[3]).item())
+                test_accuracy.append(criterion(y[1],y_pred[1]).item())
 
                 if i in get_im:
                     l_im.append([ssh3,y_pred[0],y_pred[1],y_pred[2],y_pred[3],y[1],y[2],y[3]])
