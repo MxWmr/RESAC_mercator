@@ -1,6 +1,7 @@
 
 import torch
 from datetime import datetime
+from data_load import *
 import numpy as np 
 from archi import *
 from plot_utils import *
@@ -16,63 +17,74 @@ date = datetime.now().strftime("%m_%d_%H:%M_")
 
 # load data
 save_path = "/usr/home/mwemaere/neuro/resac_mercator/Save/"
-data_path = "/usr/home/mwemaere/neuro/Data/"
-ssh3 = torch.load(data_path + "SSH_MERCATOR_1%3.pt")
-ssh6 = torch.load(data_path + "SSH_MERCATOR_1%6.pt")[:,:,:134]
-ssh12 = torch.load(data_path + "SSH_MERCATOR_1%12.pt")[:,:,:268]
-sst6 = torch.load(data_path + "SST_MERCATOR_1%6.pt")[:,:,:134]
-sst12 = torch.load(data_path + "SST_MERCATOR_1%12.pt")[:,:,:268]
-u12 = torch.load(data_path + "U_MERCATOR_1%12.pt")[:,:,:268]
-v12 = torch.load(data_path + "V_MERCATOR_1%12.pt")[:,:,:268]
+data_path = "/usr/home/mwemaere/neuro/Data3/"
+
+pool = torch.nn.AvgPool2d(2,stride=(2,2))
+pool2 = torch.nn.AvgPool2d(4,stride=(4,4))
+train_loader = Dataset(98,96,data_path,'ssh_mod_','sst_','u_','v_',batch_size=16,first_file=0) # first file 67 to start with 2011
 
 
-for A in (ssh3,ssh6,ssh12,sst6,sst12,u12,v12):
-    A -= torch.min(A)
-    A /= torch.max(A)
+test_sla_12 = torch.load(data_path + 'test_ssh_mod.pt')[:,:,:,:264]
+test_sst_12 = torch.load(data_path + 'test_sst.pt')[:,:,:,:264]
+
+test_sla_6 = pool(torch.load(data_path + 'test_ssh_mod.pt')[:,:,:,:264])
+test_sst_6 = pool(torch.load(data_path + 'test_sst.pt')[:,:,:,:264])
+
+test_sla_3 = pool2(torch.load(data_path + 'test_ssh_mod.pt')[:,:,:,:264])
+
+test_u = torch.load(data_path + 'test_u.pt')[:,:,:,:264]
+test_v = torch.load(data_path + 'test_v.pt')[:,:,:,:264]
+
+
+test_loader = ConcatData([test_sla_3,test_sla_6,test_sla_12,test_sst_6,test_sst_12,test_u,test_v],shuffle=False)
 
 
 
-ssh3 = torch.unsqueeze(ssh3,1)
-ssh6 = torch.unsqueeze(ssh6,1)
-ssh12 = torch.unsqueeze(ssh12,1)
-sst6 = torch.unsqueeze(sst6,1)
-sst12 = torch.unsqueeze(sst12,1)
-u12 = torch.unsqueeze(u12,1)
-v12 = torch.unsqueeze(v12,1)
+valid_sla_12 = torch.load(data_path + 'valid_ssh_mod.pt')[:,:,:,:264]
+valid_sst_12 = torch.load(data_path + 'valid_sst.pt')[:,:,:,:264]
 
-train_loader,test_loader = prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,u12,v12,batch_size=16)
+valid_sla_6 = pool(torch.load(data_path + 'valid_ssh_mod.pt')[:,:,:,:264])
+valid_sst_6 = pool(torch.load(data_path + 'valid_sst.pt')[:,:,:,:264])
+
+valid_sla_3 = pool2(torch.load(data_path + 'valid_ssh_mod.pt')[:,:,:,:264])
+
+valid_u = torch.load(data_path + 'valid_u.pt')[:,:,:,:264]
+valid_v = torch.load(data_path + 'valid_v.pt')[:,:,:,:264]
+
+valid_loader = ConcatData([valid_sla_3,valid_sla_6,valid_sla_12,valid_sst_6,valid_sst_12,valid_u,valid_v],shuffle=False)
+
+
+
 
 criterion = RMSELoss()
 
 model = resac()
 
 if False:    #train
-    lr = 1e-3  
-    optimizer = torch.optim.Adam(model.parameters(),lr=lr)
 
-    num_epochs =40
+    optim = torch.optim.Adam(model.parameters(), lr=5e-3)
+    #scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optim, lr_lambda=custom_scheduler)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim,factor=0.1,patience=5)
+    n_epochs = 100
 
-    model.fit(device,optimizer,criterion,train_loader,num_epochs)
+    model.fit(train_loader,valid_loader,n_epochs,device,criterion,optim,data_path,scheduler)
 
-    torch.save(model.state_dict(), save_path+date+'model.pth')
+    torch.save(model.state_dict(), save_path+date+'resac.pth')
 
 if True:   #test
     device= 'cpu'
-    date = '04_25_16:08_'
-    model.load_state_dict(torch.load(save_path+date+'model.pth'))
+    date = '07_18_11:26_'
+    model.load_state_dict(torch.load(save_path+date+'resac.pth'))
     model = model.to(device)
 
-    mean,std, l_im = model.test(criterion,test_loader,device, get_im=[15,58,245])
+    mean,mean2,mean3,l_im = model.test(criterion,test_loader,device,data_path, get_im=[291])
 
 
-    print(mean)
-    print(std)
-    with open('test_result.txt', 'a') as f:
-        f.write('\n'+date+'\n')
-        f.write(str(mean)+'\n')
-        f.write(str(std)+'\n')
+    print('test RMSE SLA 1/12:{}'.format(mean))
+    print('test RMSE U:{}'.format(mean2))
+    print('test RMSE V:{}'.format(mean3))
 
-        f.close()
+
 
     plot_test_ssh(l_im,save_path,date)
     plot_test_uv(l_im,save_path,date)

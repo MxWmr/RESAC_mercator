@@ -76,7 +76,7 @@ class resac(nn.Module):
         self.upsamp = nn.Upsample(scale_factor=2,mode='bicubic')
         self.bn1 = nn.BatchNorm2d(36)
         self.bn =  nn.BatchNorm2d(nf) 
-        self.relu = nn.ReLU()
+        self.relu = nn.SELU()
         self.sig = nn.Sigmoid()
 
     def CNN1(self,im):
@@ -90,9 +90,8 @@ class resac(nn.Module):
         im = self.l_conv1[-2](im)
         im = self.relu(im)
         im = self.l_conv1[-1](im)
-        ssh6 =self.sig(im)
 
-        return ssh6
+        return im
 
     def CNN2(self,im):
 
@@ -106,9 +105,8 @@ class resac(nn.Module):
         im = self.l_conv2[-2](im)
         im = self.relu(im)
         im = self.l_conv2[-1](im)
-        ssh12 =self.sig(im)
         
-        return ssh12
+        return im
 
     def CNN3(self,im):
 
@@ -122,9 +120,8 @@ class resac(nn.Module):
         im = self.l_conv3[-2](im)
         im = self.relu(im)
         im = self.l_conv3[-1](im)
-        uv =self.sig(im)
 
-        return uv
+        return im
 
     def CNN4(self,im):
 
@@ -138,9 +135,8 @@ class resac(nn.Module):
         im = self.l_conv4[-2](im)
         im = self.relu(im)
         im = self.l_conv4[-1](im)
-        u =self.sig(im)
         
-        return u
+        return im
 
 
     def CNN5(self,im):
@@ -155,9 +151,8 @@ class resac(nn.Module):
         im = self.l_conv5[-2](im)
         im = self.relu(im)
         im = self.l_conv5[-1](im)
-        v =self.sig(im)
 
-        return v  
+        return im
 
 
     def forward(self,X):
@@ -179,12 +174,18 @@ class resac(nn.Module):
 
         return [ssh6,ssh12,u,v]
 
-    def fit(self,device,optimizer,criterion,train_loader,num_epochs):
+    def fit(self,train_loader,valid_loader,n_epochs,device,criterion,optimizer,data_path,scheduler):
 
         model = self.to(device)
         tbw = SummaryWriter()
 
-        for epoch in range(num_epochs):
+        rmse= RMSELoss()
+        [mean_mod,std_mod] = torch.load(data_path+'mean_std_mod.pt')
+        [mean_u,std_u] = torch.load(data_path+'mean_std_u.pt')
+        [mean_v,std_v] = torch.load(data_path+'mean_std_v.pt')
+    
+
+        for epoch in range(n_epochs):
             print('epoch: {}'.format(epoch+1))
 
             l_loss1 = []
@@ -192,12 +193,16 @@ class resac(nn.Module):
             l_loss3 = []
             l_loss4 = []
             
-            for (ssh3,ssh6,ssh12,sst6,sst12,u,v) in tqdm(train_loader):
+            for i,(ssh3,ssh6,ssh12,sst6,sst12,u,v) in tqdm(enumerate(train_loader)):
 
                 optimizer.zero_grad()
 
                 X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
                 y = [ssh6.to(device),ssh12.to(device),u.to(device),v.to(device)]
+
+                b_size = ssh3.shape[0]
+                if b_size == 0:
+                    continue
 
                 y_pred = model(X)
 
@@ -206,6 +211,7 @@ class resac(nn.Module):
                 loss3 = criterion(y_pred[2],y[2])
                 loss4 = criterion(y_pred[3],y[3])
                 loss = loss1 + loss2 + loss3 + loss4
+
                 l_loss1.append(loss1.item())
                 l_loss2.append(loss2.item())
                 l_loss3.append(loss3.item())
@@ -215,78 +221,107 @@ class resac(nn.Module):
 
                 optimizer.step()
 
+
+            l_valid1 = []
+            l_valid2 = []
+            l_valid3 = []
+
+            with torch.no_grad():
+
+                for i,(ssh3,ssh6,ssh12,sst6,sst12,u,v) in tqdm(enumerate(valid_loader)):
+
+                    optimizer.zero_grad()
+
+                    X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
+                    y = [ssh6.to(device),ssh12.to(device),u.to(device),v.to(device)]
+
+                    b_size = ssh3.shape[0]
+                    if b_size == 0:
+                        continue
+
+                    y_pred = model(X)
+             
+                    l_valid1.append(rmse(y_pred[1]*std_mod+mean_mod,y[1]*std_mod+mean_mod).item())
+                    l_valid2.append(rmse(y_pred[2]*std_u+mean_u,y[2]*std_u+mean_u).item())
+                    l_valid3.append(rmse(y_pred[3]*std_v+mean_v,y[3]*std_v+mean_v).item())
+
+                valid_mean1 = np.array(l_valid1).mean()
+                tbw.add_scalar("RMSE SLA 1/12(m)",valid_mean1,epoch)
+
+                valid_mean2 = np.array(l_valid2).mean()
+                tbw.add_scalar("RMSE U (m.s-1)",valid_mean2,epoch)
+
+                valid_mean3 = np.array(l_valid3).mean()
+                tbw.add_scalar("RMSE V (m.s-1)",valid_mean3,epoch)
+
+                print('RMSE: {}m'.format(valid_mean1))
+
+
             tbw.add_scalar("loss 1",np.array(l_loss1).mean(),epoch)
             tbw.add_scalar("loss 2",np.array(l_loss2).mean(),epoch)
             tbw.add_scalar("loss 3",np.array(l_loss3).mean(),epoch)
             tbw.add_scalar("loss 4",np.array(l_loss4).mean(),epoch)
 
-            if epoch%4 == 0:
+            if epoch%4 == 0 and i==10:
                 tbw.add_image("prediction ssh12",y_pred[1][0])
                 tbw.add_image("target ssh",y[1][0])
                 tbw.add_image("prediction u",y_pred[2][0])
                 tbw.add_image("target u",y[2][0])
 
+
+        scheduler.step(valid_mean1)
+
+        print('lr:{}'.format(optimizer.param_groups[0]["lr"]))
+
+
         tbw.close()
             
 
-    def test(self,criterion,test_loader,device,get_im):
+    def test(self,criterion,test_loader,device,data_path,get_im):
+
+        [mean_mod,std_mod] = torch.load(data_path+'mean_std_mod.pt')
+        [mean_u,std_u] = torch.load(data_path+'mean_std_u.pt')
+        [mean_v,std_v] = torch.load(data_path+'mean_std_v.pt')
         model = self.to(device)
-        test_accuracy = []    
+        test_accuracy = [] 
+        test_accuracy2 = [] 
+        test_accuracy3 = []    
+ 
         l_im = []
         with torch.no_grad():
             for i,(ssh3,ssh6,ssh12,sst6,sst12,u,v) in enumerate(test_loader):
                 X = [ssh3.to(device),sst6.to(device),sst12.to(device)]
                 y = [ssh6.to(device),ssh12.to(device),u.to(device),v.to(device)]
+
                 y_pred = model(X)
-                test_accuracy.append(criterion(y[1],y_pred[1]).item())
+
+                test_accuracy.append(criterion(y_pred[1]*std_mod+mean_mod,y[1]*std_mod+mean_mod).item())
+                test_accuracy2.append(criterion(y_pred[2]*std_u+mean_u,y[2]*std_u+mean_u).item())
+                test_accuracy3.append(criterion(y_pred[3]*std_v+mean_v,y[3]*std_v+mean_v).item())
+
 
                 if i in get_im:
-                    l_im.append([ssh3,y_pred[0],y_pred[1],y_pred[2],y_pred[3],y[1],y[2],y[3]])
+                    l_im.append([ssh3*std_mod+mean_mod,y_pred[1]*std_mod+mean_mod,y_pred[2]*std_u+mean_u,y_pred[3]*std_v+mean_v,y[1]*std_mod+mean_mod,y[2]*std_u+mean_u,y[3]*std_v+mean_v])
 
 
         test_accuracy = np.array(test_accuracy)
+        test_accuracy2 = np.array(test_accuracy2)
+        test_accuracy3 = np.array(test_accuracy3)
         mean = np.mean(test_accuracy, axis=0)
-        std = np.std(test_accuracy, axis=0)
+        mean2 = np.mean(test_accuracy2, axis=0)
+        mean3 = np.mean(test_accuracy3, axis=0)
+
         if len(get_im)!=0:
-            return mean,std,l_im
+            return mean,mean2,mean3,l_im
         else:
-            return mean,std
-        
-class ConcatData(torch.utils.data.Dataset):
-    def __init__(self,datasets,shuffle=False,batch_size=1):
-        super().__init__()
-        self.datasets = datasets
-        self.batch_size = batch_size
-
-        if shuffle:
-            n = len(datasets[0])
-            id_rd = torch.randperm(n)
-            for d in self.datasets:
-                d = d[list(id_rd)]
-
-    def __getitem__(self,i):
-        self.datasets[0][(i+1)*self.batch_size]
-        return tuple(d[i*self.batch_size:(i+1)*self.batch_size] for d in self.datasets)
+            return mean,mean2,mean3
 
 
-    def __len__(self):
-        return min(int(len(d)/self.batch_size) for d in self.datasets)
-
-def prepare_loaders(ssh3,ssh6,ssh12,sst6,sst12,u,v,batch_size=32):
-
-    l = [ssh3,ssh6,ssh12,sst6,sst12,u,v]
-    l_test = []
-
-    for i in range(len(l)):
-        l_test.append(l[i][365*12+3:365*13+3,:,:,:])
-        l[i] = torch.concat((l[i][:365*12+3,:,:,:],l[i][365*13+3:,:,:,:]),axis=0)
 
 
-    test_loader = ConcatData(l_test,shuffle=True)
 
-    train_loader = ConcatData(l,shuffle=True,batch_size=batch_size)
-    
-    return train_loader,test_loader
+
+
 
 class RMSELoss(torch.nn.Module):
     def __init__(self,coeff=1):
@@ -296,8 +331,6 @@ class RMSELoss(torch.nn.Module):
         
     def forward(self,yhat,y):
         return self.coeff*torch.sqrt(self.mse(yhat,y))
-
-
 
 
 
